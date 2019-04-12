@@ -1,0 +1,21 @@
+memberof_tree.settings:
+  type: config_object
+  mapping:
+    bundle_parent_fields:
+      type: sequence
+      label: 'Bundle Parent Fields'
+      sequence:
+        type: memberof_tree_bundle_field_map
+
+memberof_tree_bundle_field_map:
+  type: mapping
+  mapping:
+    bundle:
+      type: string
+      label: 'Bundle'
+    parent_field:
+      type: string
+      label: 'Parent field machine name'
+    weight_field:
+      type: string
+      label: 'Weight field machine name'

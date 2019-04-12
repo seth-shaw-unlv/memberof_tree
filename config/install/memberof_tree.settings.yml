@@ -1,0 +1,5 @@
+bundle_parent_fields:
+  -
+    bundle: archival_object
+    parent_field: field_as_parent
+    weight_field: field_as_weight

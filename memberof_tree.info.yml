@@ -1,0 +1,4 @@
+name: Member_Of Tree
+type: module
+description: 'Allows users to navigate hierarchies based on entity reference fields linking parents (member_of).'
+core: 8.x
