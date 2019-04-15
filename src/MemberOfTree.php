@@ -2,7 +2,7 @@
 
 namespace Drupal\memberof_tree;
 
-use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Url;
 
 /**
  * Implements a member_of tree.
@@ -11,36 +11,35 @@ class MemberOfTree implements MemberOfTreeInterface {
 
   protected $node;
 
-  protected $parent_field;
+  protected $parentField;
 
-  protected $weight_field;
+  protected $weightField;
 
   /**
    * Constructs a MemberOfTree object.
    */
-  function __construct(int $nid) {
-      // We at least need to load the entity given to get the bundle config.
-      $node_storage = \Drupal::entityTypeManager()->getStorage('node');
-      print("Loading NODE $nid...\n");
-      $this->node = $node_storage->load($nid);
-      $bundle = $this->node->bundle();
+  public function __construct(int $nid) {
+    // We at least need to load the entity given to get the bundle config.
+    $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+    $this->node = $node_storage->load($nid);
+    $bundle = $this->node->bundle();
 
-      // Parent and weight fields.
-      $this->parent_field = 'field_member_of';
-      $this->weight_field = 'field_weight';
-      $config = \Drupal::config('memberof_tree.settings');
-      if (isset($config)){
-        foreach ($config->get('bundle_parent_fields') as $mapping) {
-          if ($mapping['bundle'] == $bundle){
-            if (isset($mapping['parent_field'])) {
-              $this->parent_field = $mapping['parent_field'];
-            }
-            if (isset($mapping['weight_field'])) {
-              $this->weight_field = $mapping['weight_field'];
-            }
+    // Parent and weight fields.
+    $this->parentField = 'field_member_of';
+    $this->weightField = 'field_weight';
+    $config = \Drupal::config('memberof_tree.settings');
+    if (isset($config)) {
+      foreach ($config->get('bundle_parent_fields') as $mapping) {
+        if ($mapping['bundle'] == $bundle) {
+          if (isset($mapping['parent_field'])) {
+            $this->parentField = $mapping['parent_field'];
+          }
+          if (isset($mapping['weight_field'])) {
+            $this->weightField = $mapping['weight_field'];
           }
         }
       }
+    }
 
   }
 
@@ -48,39 +47,43 @@ class MemberOfTree implements MemberOfTreeInterface {
    * {@inheritdoc}
    */
   public function getParents($load_entities = FALSE) {
-
-   $parents = $this->loadParents($this->node->id());
-   if ($load_entities) {
-     return $node_storage->loadMultiple(array_column($parents, 'nid'));
-   } else {
-     return $parents;
-   }
-
+    $parents = $this->loadParents($this->node->id());
+    if ($load_entities) {
+      return $node_storage->loadMultiple(array_column($parents, 'nid'));
+    }
+    else {
+      return $parents;
+    }
   }
 
+  /**
+   * Internal function for recusively loading parent items.
+   */
   private function loadParents($nid) {
-    // print("LOADING PARENTS FOR $nid looking in $field...\n");
-    $parent = $this->getParent($nid);
+    $parent = $this->loadParent($nid);
     if ($parent) {
-      // print("FOUND PARENT FOR NID: ".$parent['nid'].' "'.$parent['title'].'"'."\n");
-      $parent['url'] = \Drupal\Core\Url::fromRoute('entity.node.canonical',
+      $parent['url'] = Url::fromRoute('entity.node.canonical',
         ['node' => $parent['nid']],
         ['absolute' => TRUE]
       );
       return array_merge($this->loadParents($parent['nid']), [$parent]);
     }
-
+    // No parents to return.
     return [];
   }
 
-  private function getParent($nid) {
+  /**
+   * Internal function for querying a node's parent based on their node ID.
+   */
+  private function loadParent($nid) {
     // SELECT n.nid, n.title
     // FROM node_field_data AS n
-    // INNER JOIN node__field_as_parent AS f ON f.field_as_parent_target_id = n.nid
-    // WHERE f.entity_id = 10;
+    // INNER JOIN node__field_as_parent AS f
+    // ON f.field_as_parent_target_id = n.nid
+    // WHERE f.entity_id = 10;.
     $parent_query = \Drupal::database()->select('node_field_data', 'n');
-    $parent_query->join('node__'.$this->parent_field, 'f', 'n.nid = f.'.$this->parent_field.'_target_id');
-    $parent_query->fields('n', ['nid','title'])
+    $parent_query->join('node__' . $this->parentField, 'f', 'n.nid = f.' . $this->parentField . '_target_id');
+    $parent_query->fields('n', ['nid', 'title'])
       ->condition('f.entity_id', $nid);
     return $parent_query->execute()->fetchAssoc();
   }
@@ -92,37 +95,37 @@ class MemberOfTree implements MemberOfTreeInterface {
     return $this->loadChildren($this->node->id(), $max_depth);
   }
 
+  /**
+   * Internal function for recusively loading child items up to a max depth.
+   */
   private function loadChildren($nid, $max_depth = NULL) {
-    // print("LOADING CHILDREN FOR $nid ...\n");
     // SELECT n.nid, n.title
     // FROM node_field_data AS n
     // INNER JOIN node__field_as_parent AS f ON f.entity_id = n.nid
     // INNER JOIN node__field_as_weight AS w ON n.nid = w.entity_id
     // WHERE f.field_as_parent_target_id = 125
-    // ORDER BY w.field_as_weight_value, n.title
+    // ORDER BY w.field_as_weight_value, n.title.
     $child_query = \Drupal::database()->select('node_field_data', 'n');
-    $child_query->join('node__'.$this->parent_field, 'p', 'n.nid = p.entity_id');
-    $child_query->join('node__'.$this->weight_field, 'w', 'n.nid = w.entity_id');
-    $child_query->fields('n', ['nid','title'])
-      ->fields('w', [$this->weight_field . '_value'])
-      ->condition('p.'.$this->parent_field.'_target_id', $nid)
-      ->orderBy('w.'.$this->weight_field . '_value');
-    // print("QUERY: ".$child_query->__toString()."\n");
+    $child_query->join('node__' . $this->parentField, 'p', 'n.nid = p.entity_id');
+    $child_query->join('node__' . $this->weightField, 'w', 'n.nid = w.entity_id');
+    $child_query->fields('n', ['nid', 'title'])
+      ->fields('w', [$this->weightField . '_value'])
+      ->condition('p.' . $this->parentField . '_target_id', $nid)
+      ->orderBy('w.' . $this->weightField . '_value');
     $results = $child_query->execute();
     $children = [];
     foreach ($results->fetchAllAssoc('nid', \PDO::FETCH_ASSOC) as $child_nid => $child) {
-      //URL
-      $child['url'] = \Drupal\Core\Url::fromRoute('entity.node.canonical',
+      // URL.
+      $child['url'] = Url::fromRoute('entity.node.canonical',
         ['node' => $child['nid']],
         ['absolute' => TRUE]
       );
-      // print("CHILD: \n".print_r($child,TRUE)."\n");
       $grand_children = [];
-      if ($max_depth === null ) {
-        $grand_children = $this->loadChildren($child['nid'], null);
-      } elseif ($max_depth > 1) {
+      if ($max_depth === NULL) {
+        $grand_children = $this->loadChildren($child['nid'], NULL);
+      }
+      elseif ($max_depth > 1) {
         $next_depth = $max_depth - 1;
-        print("REMAINING DEPTH: $next_depth\n");
         $grand_children = $this->loadChildren($child['nid'], $next_depth);
       }
       if ($grand_children) {
@@ -137,34 +140,114 @@ class MemberOfTree implements MemberOfTreeInterface {
    * {@inheritdoc}
    */
   public function getNext() {
-    // print_r($this->node->get($this->parent_field)->target_id);
+    return $this->loadNext($this->node->id());
+  }
+
+  /**
+   * Load the next node for the provided node ID.
+   */
+  private function loadNext($nid) {
+    // Try to find a child (Depth-first tree traversal).
+    $children = $this->loadChildren($nid, 1);
+    if ($children) {
+      return $children[0];
+    }
+
+    // Try to find a sibling.
     $next = FALSE;
-    // Siblings
-    foreach ($this->loadChildren($this->node->get($this->parent_field)->target_id, 1) as $sibling) {
-      if ($next){
+    $parent = $this->loadParent($nid);
+    // No Parent => No Sibling.
+    if (empty($parent)) {
+      return FALSE;
+    }
+    foreach ($this->loadChildren($parent['nid'], 1) as $sibling) {
+      if ($next) {
         return $sibling;
-      } elseif ($sibling['nid'] === $this->node->id()){
+      }
+      elseif ($sibling['nid'] === $nid) {
         $next = TRUE;
       }
     }
-    // Next was never true, try the parent's siblings...
+
+    // Next of the parent...
+    return $this->recurseParentSiblingsNext($parent['nid']);
+  }
+
+  /**
+   * Find a parent node's next sibling, recursively.
+   */
+  private function recurseParentSiblingsNext($nid) {
+    $next = FALSE;
+    $grand_parent = $this->loadParent($nid);
+    if (empty($grand_parent)) {
+      return FALSE;
+    }
+    foreach ($this->loadChildren($grand_parent['nid'], 1) as $parent_sibling) {
+      if ($next) {
+        return $parent_sibling;
+      }
+      elseif ($parent_sibling['nid'] === $nid) {
+        $next = TRUE;
+      }
+    }
+    return $this->recurseParentSiblingsNext($grand_parent['nid']);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getPrev() {
-    // print_r($this->node->get($this->parent_field)->target_id);
+    return $this->loadPrev($this->node->id());
+  }
+
+  /**
+   * Find a node's previous sibling, recursively.
+   */
+  private function loadPrev($nid) {
+    $parent = $this->loadParent($nid);
+    // No Parent => No Sibling.
+    if (empty($parent)) {
+      return FALSE;
+    }
     $prev = [];
-    // Siblings
-    foreach ($this->loadChildren($this->node->get($this->parent_field)->target_id, 1) as $sibling) {
-      if ($sibling['nid'] === $this->node->id()){
-        return $prev;
-      } else {
+    // Siblings.
+    foreach ($this->loadChildren($parent['nid'], 1) as $sibling) {
+      if ($sibling['nid'] === $this->node->id()) {
+        if (empty($prev)) {
+          // Node was first among children, return parent as previous.
+          return $parent;
+        }
+        // Find the last child of the sibling we saw last.
+        return $this->findLastDecedent($prev);
+      }
+      else {
         $prev = $sibling;
       }
     }
     // If we never returned a prev, try the parent's siblings...
+    return $this->loadPrev($parent['nid']);
+  }
+
+  /**
+   * Find the deepest node in the tree based on heaviest child per level.
+   */
+  private function findLastDecedent($parent) {
+    $child_query = \Drupal::database()->select('node_field_data', 'n');
+    $child_query->join('node__' . $this->parentField, 'p', 'n.nid = p.entity_id');
+    $child_query->join('node__' . $this->weightField, 'w', 'n.nid = w.entity_id');
+    $child_query->fields('n', ['nid', 'title'])
+      ->fields('w', [$this->weightField . '_value'])
+      ->condition('p.' . $this->parentField . '_target_id', $parent['nid'])
+      ->orderBy('w.' . $this->weightField . '_value', 'DESC');
+    $heaviest_weight_child = $child_query->execute()->fetchAssoc();
+    if (empty($heaviest_weight_child)) {
+      return $parent;
+    }
+    $heaviest_weight_child['url'] = Url::fromRoute('entity.node.canonical',
+      ['node' => $child['nid']],
+      ['absolute' => TRUE]
+    );
+    return $this->findLastDecedent($heaviest_weight_child);
   }
 
 }

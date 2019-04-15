@@ -2,8 +2,6 @@
 
 namespace Drupal\memberof_tree;
 
-use Drupal\Core\Entity\EntityInterface;
-
 /**
  * Provides an interface defining a member_of tree.
  */
@@ -12,12 +10,11 @@ interface MemberOfTreeInterface {
   /**
    * Finds all parents of a given node ID.
    *
-   * @param int $nid
-   *   Node ID to retrieve parents for.
    * @param bool $load_entities
    *   If TRUE, a full entity load will occur on the node objects. Otherwise
    *   they are partial objects storing only node IDs and titles.
    *   Defaults to FALSE.
+   *
    * @return array
    *   An array of term objects which are the parents of the term $tid.
    */
@@ -26,8 +23,6 @@ interface MemberOfTreeInterface {
   /**
    * Gathers all children of a node.
    *
-   * @param int $nid
-   *   The node ID under which to gather children.
    * @param int $max_depth
    *   The number of levels of the decendency tree to return. Leave NULL to
    *   return all levels.
@@ -44,9 +39,6 @@ interface MemberOfTreeInterface {
   /**
    * Fetches the entity for the next sibling.
    *
-   * @param int $nid
-   *   Node ID to retrieve a next sibling for.
-   *
    * @return \Drupal\Core\Entity\EntityInterface
    *   Next sibling entity.
    */
@@ -54,9 +46,6 @@ interface MemberOfTreeInterface {
 
   /**
    * Fetches the entity for the previous sibling.
-   *
-   * @param int $nid
-   *   Node ID to retrieve a next sibling for.
    *
    * @return \Drupal\Core\Entity\EntityInterface
    *   Previous sibling entity.
